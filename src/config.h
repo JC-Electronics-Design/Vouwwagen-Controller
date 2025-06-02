@@ -28,6 +28,8 @@
 #define LONG_PRESS_MS 600
 #define LONG_PRESS_INTERVAL_MS  100
 
+#define MIN_LOOP_LENGTH_MS 10
+
 /*** Output configuration ***/
 // Pin configuration, info: relays are active low
 #define RELAY_1 4
@@ -60,5 +62,17 @@
 #define COLOR_CHANGE_HUE_STEPS 1
 #define BRIGHTNESS_CHANGE_DELAY 50
 #define BRIGHTNESS_CHANGE_STEPS 5
+
+// BLE configuration
+#define BLE_NAME "VW-Controller"
+// See the following for generating UUIDs:
+// https://www.uuidgenerator.net/
+#define SERVICE_UUID                    "8c113600-3ec3-452c-868c-7d6b5a3afe1c"
+#define RELAY_SW1_CHARACTERISTIC_UUID   "8c113601-3ec3-452c-868c-7d6b5a3afe1c"
+#define RELAY_SW2_CHARACTERISTIC_UUID   "8c113602-3ec3-452c-868c-7d6b5a3afe1c"
+#define RELAY_SW3_CHARACTERISTIC_UUID   "8c113603-3ec3-452c-868c-7d6b5a3afe1c"
+#define RELAY_SW4_CHARACTERISTIC_UUID   "8c113604-3ec3-452c-868c-7d6b5a3afe1c"
+#define LED_SW1_CHARACTERISTIC_UUID     "8c113605-3ec3-452c-868c-7d6b5a3afe1c"
+#define LED_COLOR1_CHARACTERISTIC_UUID  "8c113606-3ec3-452c-868c-7d6b5a3afe1c"
 
 #endif

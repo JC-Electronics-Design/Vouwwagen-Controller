@@ -9,6 +9,7 @@
  * 
  */
 #include <Arduino.h>
+#include <ArduinoBLE.h>
 #include <OneButton.h>
 #include <FastLED.h>
 #include "config.h"
@@ -25,7 +26,7 @@
  * All lights off               -> Double press button 4
  * */
 
-// Variable declaration
+// --- Variable declaration
 // Relay output status
 bool relay1_status = false;
 bool relay2_status = false;
@@ -42,16 +43,59 @@ uint8_t last_led_out_1_val = LED_MAX_BRIGHTNESS;
 uint32_t last_color_change_time = 0;
 uint32_t last_brightness_change_time = 0;
 
-// Setup OneButton instances
+// One Button variables
+uint32_t loop_time = 0;
+
+// --- Setup OneButton instances
 OneButton button1(BUTTON_1, ACTIVE_LOW);
 OneButton button2(BUTTON_2, ACTIVE_LOW);
 OneButton button3(BUTTON_3, ACTIVE_LOW);
 OneButton button4(BUTTON_4, ACTIVE_LOW);
 
-// Setup FastLED instances
+// --- Setup FastLED instances
 CRGB led_out_1[LED_OUT_1_NUM_LEDS];
 CRGB led_out_2[LED_OUT_2_NUM_LEDS];
 
+// --- Setup BLE
+bool deviceConnected = false;
+bool oldDeviceConnected = false;
+
+BLEService ble_service(SERVICE_UUID);   // Bluetooth® Low Energy Service
+
+BLEByteCharacteristic relay_sw1_characteristic(RELAY_SW1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 1 characteristic
+BLEByteCharacteristic relay_sw2_characteristic(RELAY_SW2_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 2 characteristic
+BLEByteCharacteristic relay_sw3_characteristic(RELAY_SW3_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 3 characteristic
+BLEByteCharacteristic relay_sw4_characteristic(RELAY_SW4_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 4 characteristic
+
+BLEByteCharacteristic led_sw1_characteristic(LED_SW1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 1 characteristic
+BLEByteCharacteristic led_color1_characteristic(LED_COLOR1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 1 characteristic
+
+void start_ble() {
+  #ifdef DEBUG_EN
+    Serial.println("Init and start BLE service");
+  #endif
+  BLE.setDeviceName(BLE_NAME);    // Set BLE Device Name
+  BLE.setLocalName(BLE_NAME);     // Set BLE Local Name
+
+  BLE.setAdvertisedService(ble_service);    // set the UUID for the service this peripheral advertises
+
+  // Add characteristic services
+  ble_service.addCharacteristic(relay_sw1_characteristic);
+  ble_service.addCharacteristic(relay_sw2_characteristic);
+  ble_service.addCharacteristic(relay_sw3_characteristic);
+  ble_service.addCharacteristic(relay_sw4_characteristic);
+
+  ble_service.addCharacteristic(led_sw1_characteristic);
+  ble_service.addCharacteristic(led_color1_characteristic);
+
+  BLE.addService(ble_service);    // Add BLE Service
+
+  BLE.advertise();    // Start advertising
+
+  #ifdef DEBUG_EN
+    Serial.println("Bluetooth® device active, waiting for connections...");
+  #endif
+}
 
 void setLEDvalueOut1(uint16_t hue, uint8_t sat, uint8_t val) {
   for(int i = 0; i < LED_OUT_1_NUM_LEDS; i++) {
@@ -332,14 +376,64 @@ void setup() {
   init_outputs();
   init_led_outputs();
 
+  // Init BLE Service
+  if(!BLE.begin()) {
+    Serial.println("starting Bluetooth® Low Energy module failed!");
+    while(true);
+  }
+
+  // Start BLE Service
+  start_ble();
 }
 
 void loop() {
-  // keep watching the push buttons:
+  // Store start of loop time
+  loop_time = millis();
+  // Poll for BLE Events
+  BLE.poll();
+
+  // Check if BLE is connected
+  if(BLE.connected()) {
+    deviceConnected = true;
+  }
+  else {
+    deviceConnected = false;
+  }
+
+  // Check if BLE got disconencted
+  if(!deviceConnected && oldDeviceConnected) {
+    #ifdef DEBUG_EN
+      Serial.println("BLE Device Disconnected");
+    #endif
+    delay(500); // give the bluetooth stack the chance to get things ready
+    start_ble();
+    oldDeviceConnected = deviceConnected;
+  }
+
+  // Check if BLE Device got connected
+  if (deviceConnected && !oldDeviceConnected) {
+    #ifdef DEBUG_EN
+      Serial.println("BLE Device Connected, send current values");
+    #endif
+
+    relay_sw1_characteristic.writeValue(relay1_status);
+    relay_sw2_characteristic.writeValue(relay2_status);
+    relay_sw3_characteristic.writeValue(relay3_status);
+    relay_sw4_characteristic.writeValue(relay4_status);
+    led_sw1_characteristic.writeValue(0);   // TODO, change to current value
+    
+    oldDeviceConnected = deviceConnected;
+  }
+
+
+  // Watch for push button events
   button1.tick();
   button2.tick();
   button3.tick();
   button4.tick();
 
-  delay(10);
+  // Make sure loop time is long enough for OneButton handler
+  while((millis() - loop_time) < MIN_LOOP_LENGTH_MS) {
+    delay(1);
+  }
 }
