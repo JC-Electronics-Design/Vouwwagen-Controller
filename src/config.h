@@ -13,6 +13,7 @@
 
 /*** DEBUGGING ***/
 #define DEBUG_EN    // Uncomment to enable debugging via Serial
+#define BAUD 115200
 
 /*** Input configuration ***/
 // Pin configuration

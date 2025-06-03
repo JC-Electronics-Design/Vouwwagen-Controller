@@ -38,6 +38,9 @@ uint8_t led_out_1_hue = 0;
 uint8_t led_out_1_sat = 0;
 uint8_t led_out_1_val = 0; // value aka brightness
 uint8_t last_led_out_1_val = LED_MAX_BRIGHTNESS;
+uint8_t led_out_1_r = 0;
+uint8_t led_out_1_g = 0;
+uint8_t led_out_1_b = 0;
 
 //LED color changing parameters
 uint32_t last_color_change_time = 0;
@@ -119,6 +122,10 @@ void button1_click() {
     digitalWrite(RELAY_1, LOW);
     relay1_status = true;
   }
+  #ifdef DEBUG_EN
+    Serial.println("Send new relay status to BLE service");
+  #endif
+  relay_sw1_characteristic.writeValue(relay1_status);
 }
 void button1_doubleClick() {
   // TBD
@@ -158,6 +165,10 @@ void button2_click() {
     digitalWrite(RELAY_2, LOW);
     relay2_status = true;
   }
+  #ifdef DEBUG_EN
+    Serial.println("Send new relay status to BLE service");
+  #endif
+  relay_sw2_characteristic.writeValue(relay2_status);
 }
 void button2_doubleClick() {
   if(led_out_1_val) {
@@ -209,6 +220,10 @@ void button3_click() {
     digitalWrite(RELAY_3, LOW);
     relay3_status = true;
   }
+  #ifdef DEBUG_EN
+    Serial.println("Send new relay status to BLE service");
+  #endif
+  relay_sw3_characteristic.writeValue(relay3_status);
 }
 void button3_doubleClick() {
   // TBD
@@ -249,6 +264,10 @@ void button4_click() {
     digitalWrite(RELAY_4, LOW);
     relay4_status = true;
   }
+  #ifdef DEBUG_EN
+    Serial.println("Send new relay status to BLE service");
+  #endif
+  relay_sw4_characteristic.writeValue(relay4_status);
 }
 void button4_doubleClick() {
   #ifdef DEBUG_EN
@@ -264,6 +283,14 @@ void button4_doubleClick() {
   relay4_status = false;
   led_out_1_val = 0;
   setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
+
+  #ifdef DEBUG_EN
+    Serial.println("Send new relay statuses to BLE service");
+  #endif
+  relay_sw1_characteristic.writeValue(relay1_status);
+  relay_sw2_characteristic.writeValue(relay2_status);
+  relay_sw3_characteristic.writeValue(relay3_status);
+  relay_sw4_characteristic.writeValue(relay4_status);
 }
 void button4_longPressStart() {
   // TBD
@@ -290,6 +317,82 @@ void button4_duringLongPress() {
       last_brightness_change_time = millis();
     }
   }
+}
+
+void handleIncomingEvents() {
+  // Relay 1 Event
+  if(relay_sw1_characteristic.written()) {
+    if(static_cast<int>(relay_sw1_characteristic.value())) {
+      #ifdef DEBUG_EN
+        Serial.println("Turn Relay 1 On");
+      #endif
+      digitalWrite(RELAY_1, LOW);
+      relay1_status = true;
+    }
+    else {
+      #ifdef DEBUG_EN
+        Serial.println("Turn Relay 1 Off");
+      #endif
+      digitalWrite(RELAY_1, HIGH);
+      relay1_status = false;
+    }
+  }
+
+  // Relay 2 Event
+  if(relay_sw2_characteristic.written()) {
+    if(static_cast<int>(relay_sw2_characteristic.value())) {
+      #ifdef DEBUG_EN
+        Serial.println("Turn Relay 2 On");
+      #endif
+      digitalWrite(RELAY_2, LOW);
+      relay2_status = true;
+    }
+    else {
+      #ifdef DEBUG_EN
+        Serial.println("Turn Relay 2 Off");
+      #endif
+      digitalWrite(RELAY_2, HIGH);
+      relay2_status = false;
+    }
+  }
+
+  // Relay 3 Event
+  if(relay_sw3_characteristic.written()) {
+    if(static_cast<int>(relay_sw3_characteristic.value())) {
+      #ifdef DEBUG_EN
+        Serial.println("Turn Relay 3 On");
+      #endif
+      digitalWrite(RELAY_3, LOW);
+      relay3_status = true;
+    }
+    else {
+      #ifdef DEBUG_EN
+        Serial.println("Turn Relay 3 Off");
+      #endif
+      digitalWrite(RELAY_3, HIGH);
+      relay3_status = false;
+    }
+  }
+
+  // Relay 4 Event
+  if(relay_sw4_characteristic.written()) {
+    if(static_cast<int>(relay_sw4_characteristic.value())) {
+      #ifdef DEBUG_EN
+        Serial.println("Turn Relay 4 On");
+      #endif
+      digitalWrite(RELAY_4, LOW);
+      relay4_status = true;
+    }
+    else {
+      #ifdef DEBUG_EN
+        Serial.println("Turn Relay 4 Off");
+      #endif
+      digitalWrite(RELAY_4, HIGH);
+      relay4_status = false;
+    }
+  }
+
+
 }
 
 void init_inputs() {
@@ -366,7 +469,7 @@ void init_led_outputs() {
 
 void setup() {
   #ifdef DEBUG_EN
-    Serial.begin(115200);
+    Serial.begin(BAUD);
     delay(100);
     Serial.println("\n\nStart Vouwwagen Contoller");
   #endif
@@ -425,6 +528,8 @@ void loop() {
     oldDeviceConnected = deviceConnected;
   }
 
+  // Handle incoming BLE events
+  handleIncomingEvents();
 
   // Watch for push button events
   button1.tick();
