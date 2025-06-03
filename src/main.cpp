@@ -41,6 +41,10 @@ uint8_t last_led_out_1_val = LED_MAX_BRIGHTNESS;
 uint8_t led_out_1_r = 0;
 uint8_t led_out_1_g = 0;
 uint8_t led_out_1_b = 0;
+uint8_t last_led_out_1_r = LED_MAX_BRIGHTNESS;
+uint8_t last_led_out_1_g = LED_MAX_BRIGHTNESS;
+uint8_t last_led_out_1_b = LED_MAX_BRIGHTNESS;
+uint8_t led_loop_state = 0;
 
 //LED color changing parameters
 uint32_t last_color_change_time = 0;
@@ -100,9 +104,15 @@ void start_ble() {
   #endif
 }
 
-void setLEDvalueOut1(uint16_t hue, uint8_t sat, uint8_t val) {
+// void setLEDvalueOut1(uint16_t hue, uint8_t sat, uint8_t val) {
+//   for(int i = 0; i < LED_OUT_1_NUM_LEDS; i++) {
+//     led_out_1[i] = CHSV(led_out_1_hue, led_out_1_sat, led_out_1_val);
+//   }
+//   FastLED.show();
+// }
+void setLEDvalueOut1(uint16_t led_out_1_r, uint8_t led_out_1_g, uint8_t led_out_1_b) {
   for(int i = 0; i < LED_OUT_1_NUM_LEDS; i++) {
-    led_out_1[i] = CHSV(led_out_1_hue, led_out_1_sat, led_out_1_val);
+    led_out_1[i].setRGB(led_out_1_r, led_out_1_g, led_out_1_b);
   }
   FastLED.show();
 }
@@ -131,20 +141,26 @@ void button1_doubleClick() {
   // TBD
 }
 void button1_longPressStart() {
-  if(led_out_1_val) {
+  if(led_out_1_r > 0 || led_out_1_g > 0 || led_out_1_b > 0) {
     #ifdef DEBUG_EN
       Serial.println("Turn LED output 1 Off");
     #endif
-    last_led_out_1_val = led_out_1_val;
-    led_out_1_val = 0;
-    setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
+    last_led_out_1_r = led_out_1_r;
+    last_led_out_1_g = led_out_1_g;
+    last_led_out_1_b = led_out_1_b;
+    led_out_1_r = 0;
+    led_out_1_g = 0;
+    led_out_1_b = 0;
+    setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
   }
   else {
     #ifdef DEBUG_EN
       Serial.println("Turn LED output 1 On");
     #endif
-    led_out_1_val = last_led_out_1_val;
-    setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
+    led_out_1_r = last_led_out_1_r;
+    led_out_1_g = last_led_out_1_g;
+    led_out_1_b = last_led_out_1_b;
+    setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
   }  
 }
 void button1_duringLongPress() {
@@ -171,18 +187,22 @@ void button2_click() {
   relay_sw2_characteristic.writeValue(relay2_status);
 }
 void button2_doubleClick() {
-  if(led_out_1_val) {
+  if(led_out_1_r > 0 || led_out_1_g > 0 || led_out_1_b > 0) {
     #ifdef DEBUG_EN
       Serial.println("Change LED output 1 Color to White and show");
     #endif
-    led_out_1_sat = WHITE_SAT;
-    setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
+    led_out_1_r = WHITE_LEDS;
+    led_out_1_g = WHITE_LEDS;
+    led_out_1_b = WHITE_LEDS;    
+    setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
   }
   else {
     #ifdef DEBUG_EN
       Serial.println("Change LED output 1 Color to White");
     #endif
-    led_out_1_sat = WHITE_SAT;
+    led_out_1_r = WHITE_LEDS;
+    led_out_1_g = WHITE_LEDS;
+    led_out_1_b = WHITE_LEDS;    
   } 
 }
 void button2_longPressStart() {
@@ -190,17 +210,30 @@ void button2_longPressStart() {
 }
 void button2_duringLongPress() {
   // Only change color when LEDs are on
-  if(led_out_1_val) {
+  if(led_out_1_r > 0 || led_out_1_g > 0 || led_out_1_b > 0) {
     if((millis() - last_color_change_time) > COLOR_CHANGE_DELAY) {
-      led_out_1_hue += COLOR_CHANGE_HUE_STEPS;
-      if(led_out_1_hue >= 255) {
-        led_out_1_hue = 0;
+      switch(led_loop_state) {
+        case 0: // red to green
+          led_out_1_r-=COLOR_CHANGE_STEPS;
+          led_out_1_g+=COLOR_CHANGE_STEPS;
+          if (led_out_1_g >= LED_MAX_BRIGHTNESS) led_loop_state = 1;
+          break;
+        case 1: // green to blue
+          led_out_1_g-=COLOR_CHANGE_STEPS;
+          led_out_1_b+=COLOR_CHANGE_STEPS;
+          if (led_out_1_b >= LED_MAX_BRIGHTNESS) led_loop_state = 2;
+          break;
+        case 2: // blue to red
+          led_out_1_b-=COLOR_CHANGE_STEPS;
+          led_out_1_r+=COLOR_CHANGE_STEPS;
+          if (led_out_1_r >= LED_MAX_BRIGHTNESS) led_loop_state = 0;
+          break;
       }
-      led_out_1_sat = LED_MAX_SATURATION;
+
       #ifdef DEBUG_EN
-        Serial.print("Current hue value = "); Serial.println(led_out_1_hue);
+        Serial.print("Current rgb values: "); Serial.print(led_out_1_r); Serial.print(", "); Serial.print(led_out_1_g); Serial.print(", "); Serial.println(led_out_1_b);
       #endif
-      setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
+      setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
       last_color_change_time = millis();
     }
   }
@@ -492,6 +525,7 @@ void setup() {
 void loop() {
   // Store start of loop time
   loop_time = millis();
+  
   // Poll for BLE Events
   BLE.poll();
 
