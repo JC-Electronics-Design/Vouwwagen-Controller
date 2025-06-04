@@ -38,6 +38,7 @@ uint8_t led_out_1_hue = 0;
 uint8_t led_out_1_sat = 0;
 uint8_t led_out_1_val = 0; // value aka brightness
 uint8_t last_led_out_1_val = LED_MAX_BRIGHTNESS;
+uint32_t led_out_1_concat_hsv = 0;
 
 //LED color changing parameters
 uint32_t last_color_change_time = 0;
@@ -67,8 +68,8 @@ BLEByteCharacteristic relay_sw2_characteristic(RELAY_SW2_CHARACTERISTIC_UUID, BL
 BLEByteCharacteristic relay_sw3_characteristic(RELAY_SW3_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 3 characteristic
 BLEByteCharacteristic relay_sw4_characteristic(RELAY_SW4_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 4 characteristic
 
-BLEByteCharacteristic led_sw1_characteristic(LED_SW1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 1 characteristic
-BLEByteCharacteristic led_color1_characteristic(LED_COLOR1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 1 characteristic
+BLEByteCharacteristic led_sw1_characteristic(LED_SW1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy LED Switch 1 characteristic
+BLEUnsignedLongCharacteristic led_hsv1_characteristic(LED_HSV1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy LED Hue 1 characteristic
 
 void start_ble() {
   #ifdef DEBUG_EN
@@ -86,7 +87,7 @@ void start_ble() {
   ble_service.addCharacteristic(relay_sw4_characteristic);
 
   ble_service.addCharacteristic(led_sw1_characteristic);
-  ble_service.addCharacteristic(led_color1_characteristic);
+  ble_service.addCharacteristic(led_hsv1_characteristic);
 
   BLE.addService(ble_service);    // Add BLE Service
 
@@ -97,11 +98,27 @@ void start_ble() {
   #endif
 }
 
-void setLEDvalueOut1(uint16_t hue, uint8_t sat, uint8_t val) {
+uint32_t concat_hsv(uint8_t hue, uint8_t sat, uint8_t val) {
+  return ((uint32_t)hue << 16) | ((uint32_t)sat << 8) | val;
+}
+
+void setLEDvalueOut1(uint16_t hue, uint8_t sat, uint8_t val, bool sendBLE = true) {
   for(int i = 0; i < LED_OUT_1_NUM_LEDS; i++) {
     led_out_1[i] = CHSV(led_out_1_hue, led_out_1_sat, led_out_1_val);
   }
   FastLED.show();
+  if(deviceConnected && sendBLE) {
+    if(led_out_1_val) {
+      led_sw1_characteristic.writeValue(1);
+    }
+    else {
+      led_sw1_characteristic.writeValue(0);
+    }
+    #ifdef DEBUG_EN
+      Serial.print("Concatenated HSV: "); Serial.println(concat_hsv(led_out_1_hue, led_out_1_sat, led_out_1_val), HEX);
+    #endif
+    led_hsv1_characteristic.writeValue(concat_hsv(led_out_1_hue, led_out_1_sat, led_out_1_val));
+  }
 }
 
 void button1_click() {
@@ -119,10 +136,12 @@ void button1_click() {
     digitalWrite(RELAY_1, LOW);
     relay1_status = true;
   }
-  #ifdef DEBUG_EN
-    Serial.println("Send new relay status to BLE service");
-  #endif
-  relay_sw1_characteristic.writeValue(relay1_status);
+  if(deviceConnected) {
+    #ifdef DEBUG_EN
+      Serial.println("Send new relay status to BLE service");
+    #endif
+    relay_sw1_characteristic.writeValue(relay1_status);
+  }
 }
 void button1_doubleClick() {
   // TBD
@@ -162,10 +181,12 @@ void button2_click() {
     digitalWrite(RELAY_2, LOW);
     relay2_status = true;
   }
-  #ifdef DEBUG_EN
-    Serial.println("Send new relay status to BLE service");
-  #endif
-  relay_sw2_characteristic.writeValue(relay2_status);
+  if(deviceConnected) {
+    #ifdef DEBUG_EN
+      Serial.println("Send new relay status to BLE service");
+    #endif
+    relay_sw2_characteristic.writeValue(relay2_status);
+  }
 }
 void button2_doubleClick() {
   if(led_out_1_val) {
@@ -217,10 +238,12 @@ void button3_click() {
     digitalWrite(RELAY_3, LOW);
     relay3_status = true;
   }
-  #ifdef DEBUG_EN
-    Serial.println("Send new relay status to BLE service");
-  #endif
-  relay_sw3_characteristic.writeValue(relay3_status);
+  if(deviceConnected) {
+    #ifdef DEBUG_EN
+      Serial.println("Send new relay status to BLE service");
+    #endif
+    relay_sw3_characteristic.writeValue(relay3_status);
+  }
 }
 void button3_doubleClick() {
   // TBD
@@ -261,10 +284,12 @@ void button4_click() {
     digitalWrite(RELAY_4, LOW);
     relay4_status = true;
   }
-  #ifdef DEBUG_EN
-    Serial.println("Send new relay status to BLE service");
-  #endif
-  relay_sw4_characteristic.writeValue(relay4_status);
+  if(deviceConnected) {
+    #ifdef DEBUG_EN
+      Serial.println("Send new relay status to BLE service");
+    #endif
+    relay_sw4_characteristic.writeValue(relay4_status);
+  }
 }
 void button4_doubleClick() {
   #ifdef DEBUG_EN
@@ -281,13 +306,15 @@ void button4_doubleClick() {
   led_out_1_val = 0;
   setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
 
-  #ifdef DEBUG_EN
-    Serial.println("Send new relay statuses to BLE service");
-  #endif
-  relay_sw1_characteristic.writeValue(relay1_status);
-  relay_sw2_characteristic.writeValue(relay2_status);
-  relay_sw3_characteristic.writeValue(relay3_status);
-  relay_sw4_characteristic.writeValue(relay4_status);
+  if(deviceConnected) {
+    #ifdef DEBUG_EN
+      Serial.println("Send new relay statuses to BLE service");
+    #endif
+    relay_sw1_characteristic.writeValue(relay1_status);
+    relay_sw2_characteristic.writeValue(relay2_status);
+    relay_sw3_characteristic.writeValue(relay3_status);
+    relay_sw4_characteristic.writeValue(relay4_status);
+  }
 }
 void button4_longPressStart() {
   // TBD
@@ -334,7 +361,6 @@ void handleIncomingEvents() {
       relay1_status = false;
     }
   }
-
   // Relay 2 Event
   if(relay_sw2_characteristic.written()) {
     if(static_cast<int>(relay_sw2_characteristic.value())) {
@@ -352,7 +378,6 @@ void handleIncomingEvents() {
       relay2_status = false;
     }
   }
-
   // Relay 3 Event
   if(relay_sw3_characteristic.written()) {
     if(static_cast<int>(relay_sw3_characteristic.value())) {
@@ -370,7 +395,6 @@ void handleIncomingEvents() {
       relay3_status = false;
     }
   }
-
   // Relay 4 Event
   if(relay_sw4_characteristic.written()) {
     if(static_cast<int>(relay_sw4_characteristic.value())) {
@@ -389,7 +413,36 @@ void handleIncomingEvents() {
     }
   }
 
+  // LED 1 Switch Event
+  if(led_sw1_characteristic.written()) {
+    if(static_cast<int>(led_sw1_characteristic.value())) {
+      #ifdef DEBUG_EN
+        Serial.println("Turn LED 1 On");
+      #endif
+      led_out_1_val = last_led_out_1_val;
+      setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
+    }
+    else{
+      #ifdef DEBUG_EN
+        Serial.println("Turn LED 1 Off");
+      #endif
+      last_led_out_1_val = led_out_1_val;
+      led_out_1_val = 0;
+      setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
+    }
+  }
 
+  // LED 1 HSV Event
+  if(led_hsv1_characteristic.written()) {
+    #ifdef DEBUG_EN
+      Serial.print("LED 1 HSV value: "); Serial.println(led_hsv1_characteristic.value(), HEX);
+    #endif
+    led_out_1_hue = (led_hsv1_characteristic.value() >> 16) & 0xFF;
+    led_out_1_sat = (led_hsv1_characteristic.value() >> 8) & 0xFF;
+    led_out_1_val = led_hsv1_characteristic.value() & 0xFF;
+
+    setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val, false);
+  }
 }
 
 void init_inputs() {
@@ -487,8 +540,6 @@ void setup() {
 }
 
 void loop() {
-  // Store start of loop time
-  loop_time = millis();
   // Poll for BLE Events
   BLE.poll();
 
@@ -520,7 +571,16 @@ void loop() {
     relay_sw2_characteristic.writeValue(relay2_status);
     relay_sw3_characteristic.writeValue(relay3_status);
     relay_sw4_characteristic.writeValue(relay4_status);
-    led_sw1_characteristic.writeValue(0);   // TODO, change to current value
+    if(led_out_1_val > 1) {
+      led_sw1_characteristic.writeValue(1);
+    }
+    else {
+      led_sw1_characteristic.writeValue(0);
+    }
+    #ifdef DEBUG_EN
+      Serial.print("Concatenated HSV: "); Serial.println(concat_hsv(led_out_1_hue, led_out_1_sat, led_out_1_val), HEX);
+    #endif
+    led_hsv1_characteristic.writeValue(concat_hsv(led_out_1_hue, led_out_1_sat, led_out_1_val));
     
     oldDeviceConnected = deviceConnected;
   }
@@ -533,9 +593,4 @@ void loop() {
   button2.tick();
   button3.tick();
   button4.tick();
-
-  // Make sure loop time is long enough for OneButton handler
-  while((millis() - loop_time) < MIN_LOOP_LENGTH_MS) {
-    delay(1);
-  }
 }
