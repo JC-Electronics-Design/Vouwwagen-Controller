@@ -34,21 +34,31 @@ bool relay3_status = false;
 bool relay4_status = false;
 
 // LED color and brightness values
-uint8_t led_out_1_hue = 0;
-uint8_t led_out_1_sat = 0;
-uint8_t led_out_1_val = 0; // value aka brightness
-uint8_t last_led_out_1_val = LED_MAX_BRIGHTNESS;
 uint8_t led_out_1_r = 0;
 uint8_t led_out_1_g = 0;
 uint8_t led_out_1_b = 0;
 uint8_t last_led_out_1_r = LED_MAX_BRIGHTNESS;
 uint8_t last_led_out_1_g = LED_MAX_BRIGHTNESS;
 uint8_t last_led_out_1_b = LED_MAX_BRIGHTNESS;
-uint8_t led_loop_state = 0;
 
-//LED color changing parameters
+// LED color changing parameters
 uint32_t last_color_change_time = 0;
 uint32_t last_brightness_change_time = 0;
+
+// LED color loop state machine
+uint8_t color_loop_led_out_1_r = LED_MAX_BRIGHTNESS;   // Start red color value
+uint8_t color_loop_led_out_1_g = 0;     // Start green color value
+uint8_t color_loop_led_out_1_b = 0;     // Start blue color value
+bool color_loop_restart = true;
+enum colorLoop {
+  GREEN_UP = 0,
+  RED_DOWN = 1,
+  BLUE_UP = 2,
+  GREEN_DOWN = 3,
+  RED_UP = 4,
+  BLUE_DOWN = 5
+};
+colorLoop color_loop = GREEN_UP; 
 
 // One Button variables
 uint32_t loop_time = 0;
@@ -104,12 +114,6 @@ void start_ble() {
   #endif
 }
 
-// void setLEDvalueOut1(uint16_t hue, uint8_t sat, uint8_t val) {
-//   for(int i = 0; i < LED_OUT_1_NUM_LEDS; i++) {
-//     led_out_1[i] = CHSV(led_out_1_hue, led_out_1_sat, led_out_1_val);
-//   }
-//   FastLED.show();
-// }
 void setLEDvalueOut1(uint16_t led_out_1_r, uint8_t led_out_1_g, uint8_t led_out_1_b) {
   for(int i = 0; i < LED_OUT_1_NUM_LEDS; i++) {
     led_out_1[i].setRGB(led_out_1_r, led_out_1_g, led_out_1_b);
@@ -187,6 +191,7 @@ void button2_click() {
   relay_sw2_characteristic.writeValue(relay2_status);
 }
 void button2_doubleClick() {
+  color_loop_restart = true;
   if(led_out_1_r > 0 || led_out_1_g > 0 || led_out_1_b > 0) {
     #ifdef DEBUG_EN
       Serial.println("Change LED output 1 Color to White and show");
@@ -200,9 +205,9 @@ void button2_doubleClick() {
     #ifdef DEBUG_EN
       Serial.println("Change LED output 1 Color to White");
     #endif
-    led_out_1_r = WHITE_LEDS;
-    led_out_1_g = WHITE_LEDS;
-    led_out_1_b = WHITE_LEDS;    
+    last_led_out_1_r = WHITE_LEDS;
+    last_led_out_1_g = WHITE_LEDS;
+    last_led_out_1_b = WHITE_LEDS;    
   } 
 }
 void button2_longPressStart() {
@@ -211,25 +216,99 @@ void button2_longPressStart() {
 void button2_duringLongPress() {
   // Only change color when LEDs are on
   if(led_out_1_r > 0 || led_out_1_g > 0 || led_out_1_b > 0) {
+    if(color_loop_restart) {
+      led_out_1_r = color_loop_led_out_1_r;
+      led_out_1_g = color_loop_led_out_1_g;
+      led_out_1_b = color_loop_led_out_1_b;
+      color_loop_restart = false;
+    }
     if((millis() - last_color_change_time) > COLOR_CHANGE_DELAY) {
-      switch(led_loop_state) {
-        case 0: // red to green
-          led_out_1_r-=COLOR_CHANGE_STEPS;
-          led_out_1_g+=COLOR_CHANGE_STEPS;
-          if (led_out_1_g >= LED_MAX_BRIGHTNESS) led_loop_state = 1;
+      switch(color_loop) {
+        case GREEN_UP:
+          if(led_out_1_g < (LED_MAX_BRIGHTNESS-COLOR_CHANGE_STEPS+1)) {
+            led_out_1_g += COLOR_CHANGE_STEPS; 
+          }
+          else {
+            led_out_1_g = LED_MAX_BRIGHTNESS;
+          }
+
+          if(led_out_1_g == LED_MAX_BRIGHTNESS) 
+            color_loop = RED_DOWN;
           break;
-        case 1: // green to blue
-          led_out_1_g-=COLOR_CHANGE_STEPS;
-          led_out_1_b+=COLOR_CHANGE_STEPS;
-          if (led_out_1_b >= LED_MAX_BRIGHTNESS) led_loop_state = 2;
+        case RED_DOWN:
+          if(led_out_1_r > (COLOR_CHANGE_STEPS-1)) {
+            if(led_out_1_r > LED_MAX_BRIGHTNESS) {
+              led_out_1_r = LED_MAX_BRIGHTNESS;
+            }
+            else {
+              led_out_1_r -= COLOR_CHANGE_STEPS;
+            }
+          }
+          else {
+            led_out_1_r = 0;
+          }
+
+          if(led_out_1_r == 0)
+            color_loop = BLUE_UP;
           break;
-        case 2: // blue to red
-          led_out_1_b-=COLOR_CHANGE_STEPS;
-          led_out_1_r+=COLOR_CHANGE_STEPS;
-          if (led_out_1_r >= LED_MAX_BRIGHTNESS) led_loop_state = 0;
+        case BLUE_UP:
+          if(led_out_1_b < (LED_MAX_BRIGHTNESS-COLOR_CHANGE_STEPS+1)) {
+            led_out_1_b += COLOR_CHANGE_STEPS; 
+          }
+          else {
+            led_out_1_b = LED_MAX_BRIGHTNESS;
+          }
+
+          if(led_out_1_b == LED_MAX_BRIGHTNESS) 
+            color_loop = GREEN_DOWN;
+          break;
+        case GREEN_DOWN:
+          if(led_out_1_g > (COLOR_CHANGE_STEPS-1)) {
+            if(led_out_1_g > LED_MAX_BRIGHTNESS) {
+              led_out_1_g = LED_MAX_BRIGHTNESS;
+            }
+            else {
+              led_out_1_g -= COLOR_CHANGE_STEPS;
+            }
+          }
+          else {
+            led_out_1_g = 0;
+          }
+
+          if(led_out_1_g == 0)
+            color_loop = RED_UP;
+          break;
+        case RED_UP:
+          if(led_out_1_r < (LED_MAX_BRIGHTNESS-COLOR_CHANGE_STEPS+1)) {
+            led_out_1_r += COLOR_CHANGE_STEPS; 
+          }
+          else {
+            led_out_1_r = LED_MAX_BRIGHTNESS;
+          }
+
+          if(led_out_1_r == LED_MAX_BRIGHTNESS) 
+            color_loop = BLUE_DOWN;
+          break;
+        case BLUE_DOWN:
+          if(led_out_1_b > (COLOR_CHANGE_STEPS-1)) {
+            if(led_out_1_b > LED_MAX_BRIGHTNESS) {
+              led_out_1_b = LED_MAX_BRIGHTNESS;
+            }
+            else {
+              led_out_1_b -= COLOR_CHANGE_STEPS;
+            }
+          }
+          else {
+            led_out_1_b = 0;
+          }
+
+          if(led_out_1_b == 0)
+            color_loop = GREEN_UP;
+          break;
+        default:
+          color_loop = GREEN_UP;
           break;
       }
-
       #ifdef DEBUG_EN
         Serial.print("Current rgb values: "); Serial.print(led_out_1_r); Serial.print(", "); Serial.print(led_out_1_g); Serial.print(", "); Serial.println(led_out_1_b);
       #endif
@@ -266,18 +345,59 @@ void button3_longPressStart() {
 }
 void button3_duringLongPress() {
   // Only change brightness when LEDs are on
-  if(led_out_1_val > LED_MIN_BRIGHTNESS) {
-    if((millis() - last_brightness_change_time) > BRIGHTNESS_CHANGE_DELAY) {   
-      if(led_out_1_val > (LED_MIN_BRIGHTNESS+BRIGHTNESS_CHANGE_STEPS-1)) {
-        led_out_1_val -= BRIGHTNESS_CHANGE_STEPS; 
+  if(led_out_1_r > LED_MIN_BRIGHTNESS || led_out_1_g > LED_MIN_BRIGHTNESS || led_out_1_b > LED_MIN_BRIGHTNESS) {
+    if((millis() - last_brightness_change_time) > BRIGHTNESS_CHANGE_DELAY) {
+      if( led_out_1_r > (LED_MIN_BRIGHTNESS+BRIGHTNESS_CHANGE_STEPS-1) || 
+          led_out_1_g > (LED_MIN_BRIGHTNESS+BRIGHTNESS_CHANGE_STEPS-1) || 
+          led_out_1_b > (LED_MIN_BRIGHTNESS+BRIGHTNESS_CHANGE_STEPS-1)) {
+        if(led_out_1_r > LED_MAX_BRIGHTNESS || led_out_1_g > LED_MAX_BRIGHTNESS || led_out_1_b > LED_MAX_BRIGHTNESS) {
+          if(led_out_1_r > LED_MAX_BRIGHTNESS) {
+            led_out_1_r = LED_MAX_BRIGHTNESS;
+          } 
+          if(led_out_1_g > LED_MAX_BRIGHTNESS) {
+            led_out_1_g = LED_MAX_BRIGHTNESS;
+          }
+          if(led_out_1_b > LED_MAX_BRIGHTNESS) {
+            led_out_1_b = LED_MAX_BRIGHTNESS;
+          }
+        }
+        else{
+          if(led_out_1_r > LED_MIN_BRIGHTNESS) {
+            led_out_1_r -= BRIGHTNESS_CHANGE_STEPS;
+          }
+          else {
+            led_out_1_r = LED_MIN_BRIGHTNESS;
+            color_loop_restart = true;
+          }
+          if(led_out_1_g > LED_MIN_BRIGHTNESS) {
+            led_out_1_g -= BRIGHTNESS_CHANGE_STEPS;
+          }
+          else {
+            led_out_1_g = LED_MIN_BRIGHTNESS;
+            color_loop_restart = true;
+          }
+          if(led_out_1_b > LED_MIN_BRIGHTNESS) {
+            led_out_1_b -= BRIGHTNESS_CHANGE_STEPS;
+          }
+          else {
+            led_out_1_b = LED_MIN_BRIGHTNESS;
+            color_loop_restart = true;
+          }
+        }
       }
       else {
-        led_out_1_val = LED_MIN_BRIGHTNESS;
+        led_out_1_r = LED_MIN_BRIGHTNESS;
+        led_out_1_g = LED_MIN_BRIGHTNESS;
+        led_out_1_b = LED_MIN_BRIGHTNESS;
+        led_out_1_r = last_led_out_1_r;
+        led_out_1_g = last_led_out_1_g;
+        led_out_1_b = last_led_out_1_b;
+        color_loop_restart = true;
       }
       #ifdef DEBUG_EN
-        Serial.print("Current brightness value = "); Serial.println(led_out_1_val);
+        Serial.print("Current rgb values: "); Serial.print(led_out_1_r); Serial.print(", "); Serial.print(led_out_1_g); Serial.print(", "); Serial.println(led_out_1_b);
       #endif
-      setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
+      setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
       last_brightness_change_time = millis();
     }
   }
@@ -314,8 +434,13 @@ void button4_doubleClick() {
   relay3_status = false;
   digitalWrite(RELAY_4, HIGH);
   relay4_status = false;
-  led_out_1_val = 0;
-  setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
+  last_led_out_1_r = led_out_1_r;
+  last_led_out_1_g = led_out_1_g;
+  last_led_out_1_b = led_out_1_b;
+  led_out_1_r = 0;
+  led_out_1_g = 0;
+  led_out_1_b = 0;
+  setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
 
   #ifdef DEBUG_EN
     Serial.println("Send new relay statuses to BLE service");
@@ -330,23 +455,56 @@ void button4_longPressStart() {
 }
 void button4_duringLongPress() {
   // Only change brightness when LEDs are on
-  if(led_out_1_val < LED_MAX_BRIGHTNESS) {
-    if((millis() - last_brightness_change_time) > BRIGHTNESS_CHANGE_DELAY) {   
-      if(led_out_1_val < (LED_MAX_BRIGHTNESS-BRIGHTNESS_CHANGE_STEPS+1)) {
-        if(led_out_1_val < LED_MIN_BRIGHTNESS) {
-          led_out_1_val = LED_MIN_BRIGHTNESS;
+  if(led_out_1_r < LED_MAX_BRIGHTNESS || led_out_1_g < LED_MAX_BRIGHTNESS || led_out_1_b < LED_MAX_BRIGHTNESS) {
+    if((millis() - last_brightness_change_time) > BRIGHTNESS_CHANGE_DELAY) {
+      if( led_out_1_r < (LED_MAX_BRIGHTNESS-BRIGHTNESS_CHANGE_STEPS+1) || 
+          led_out_1_g < (LED_MAX_BRIGHTNESS-BRIGHTNESS_CHANGE_STEPS+1) || 
+          led_out_1_b < (LED_MAX_BRIGHTNESS-BRIGHTNESS_CHANGE_STEPS+1)) {
+        if(led_out_1_r < LED_MIN_BRIGHTNESS || led_out_1_g < LED_MIN_BRIGHTNESS || led_out_1_b < LED_MIN_BRIGHTNESS) {
+          if(led_out_1_r < LED_MIN_BRIGHTNESS) {
+            led_out_1_r = LED_MIN_BRIGHTNESS;
+          } 
+          if(led_out_1_g < LED_MIN_BRIGHTNESS) {
+            led_out_1_g = LED_MIN_BRIGHTNESS;
+          }
+          if(led_out_1_b < LED_MIN_BRIGHTNESS) {
+            led_out_1_b = LED_MIN_BRIGHTNESS;
+          }
         }
-        else {
-          led_out_1_val += BRIGHTNESS_CHANGE_STEPS; 
+        else{
+          if(led_out_1_r < LED_MAX_BRIGHTNESS) {
+            led_out_1_r += BRIGHTNESS_CHANGE_STEPS;
+          }
+          else {
+            led_out_1_r = LED_MAX_BRIGHTNESS;
+            color_loop_restart = true;
+          }
+          if(led_out_1_g < LED_MAX_BRIGHTNESS) {
+            led_out_1_g += BRIGHTNESS_CHANGE_STEPS;
+          }
+          else {
+            led_out_1_g = LED_MAX_BRIGHTNESS;
+            color_loop_restart = true;
+          }
+          if(led_out_1_b < LED_MAX_BRIGHTNESS) {
+            led_out_1_b += BRIGHTNESS_CHANGE_STEPS;
+          }
+          else {
+            led_out_1_b = LED_MAX_BRIGHTNESS;
+            color_loop_restart = true;
+          }
         }
       }
       else {
-        led_out_1_val = LED_MAX_BRIGHTNESS;
+        led_out_1_r = LED_MAX_BRIGHTNESS;
+        led_out_1_g = LED_MAX_BRIGHTNESS;
+        led_out_1_b = LED_MAX_BRIGHTNESS;
+        color_loop_restart = true;
       }
       #ifdef DEBUG_EN
-        Serial.print("Current brightness value = "); Serial.println(led_out_1_val);
+        Serial.print("Current rgb values: "); Serial.print(led_out_1_r); Serial.print(", "); Serial.print(led_out_1_g); Serial.print(", "); Serial.println(led_out_1_b);
       #endif
-      setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
+      setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
       last_brightness_change_time = millis();
     }
   }
@@ -497,7 +655,7 @@ void init_led_outputs() {
   // FastLED.setBrightness(LED_MAX_BRIGHTNESS);
 
   // Turn off LEDs at startup
-  setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
+  setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
 }
 
 void setup() {
