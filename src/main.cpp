@@ -38,9 +38,6 @@ uint8_t led_out_1_hue = 0;
 uint8_t led_out_1_sat = 0;
 uint8_t led_out_1_val = 0; // value aka brightness
 uint8_t last_led_out_1_val = LED_MAX_BRIGHTNESS;
-uint8_t led_out_1_r = 0;
-uint8_t led_out_1_g = 0;
-uint8_t led_out_1_b = 0;
 
 //LED color changing parameters
 uint32_t last_color_change_time = 0;
