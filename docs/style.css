@@ -1,4 +1,21 @@
 /* The switch - the box around the slider */
+body {
+  background-color: black;
+}
+
+h1, h2, p {
+  color: darkorange;
+}
+
+button {
+  background-color: gray;
+}
+
+.favcolor {
+  color: darkorange;
+  vertical-align: middle;
+}
+
 .switch {
   position: relative;
   display: inline-block;
