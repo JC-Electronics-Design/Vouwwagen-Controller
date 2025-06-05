@@ -250,7 +250,7 @@
                     console.log(false);
                 }
                 const data = new Uint8Array([value]);
-                return characteristic.writeValue(data);
+                return characteristic.writeValueWithoutResponse(data);
             })
             .catch(error => {
                 console.error("Error writing to the characteristic: ", error);
@@ -279,8 +279,7 @@
                 // console.log("LED 1 Hue: ", h);
                 // console.log("LED 1 Sat: ", s);
                 // console.log("LED 1 Val: ", v);
-                const hsv = (h * 256 * 256) + (s * 256) + v;
-                // const hsv = (h << 16) | (s << 8) | v;
+                const hsv = (h << 16) | (s << 8) | v;
                 console.log("LED 1 HSV: ", "0x" + hsv.toString(16));
                 lastWrittenHSV = hsv;
 
@@ -292,7 +291,7 @@
                 }
 
                 const data = new Uint32Array([hsv]);
-                return characteristic.writeValue(data);
+                return characteristic.writeValueWithoutResponse(data);
             })
             .catch(error => {
                 console.error("Error writing to the characteristic: ", error);
