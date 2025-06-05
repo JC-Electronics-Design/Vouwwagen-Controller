@@ -9,6 +9,10 @@ h1, h2, p {
 
 button {
   background-color: gray;
+  color: black;
+  font-weight: bold;
+  height: 30px;
+  border: 1px solid darkorange;
 }
 
 .favcolor {
