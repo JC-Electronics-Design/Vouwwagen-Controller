@@ -34,31 +34,15 @@ bool relay3_status = false;
 bool relay4_status = false;
 
 // LED color and brightness values
-uint8_t led_out_1_r = 0;
-uint8_t led_out_1_g = 0;
-uint8_t led_out_1_b = 0;
-uint8_t last_led_out_1_r = LED_MAX_BRIGHTNESS;
-uint8_t last_led_out_1_g = LED_MAX_BRIGHTNESS;
-uint8_t last_led_out_1_b = LED_MAX_BRIGHTNESS;
+uint8_t led_out_1_hue = 0;
+uint8_t led_out_1_sat = 0;
+uint8_t led_out_1_val = 0; // value aka brightness
+uint8_t last_led_out_1_val = LED_MAX_BRIGHTNESS;
+uint32_t led_out_1_concat_hsv = 0;
 
-// LED color changing parameters
+//LED color changing parameters
 uint32_t last_color_change_time = 0;
 uint32_t last_brightness_change_time = 0;
-
-// LED color loop state machine
-uint8_t color_loop_led_out_1_r = LED_MAX_BRIGHTNESS;   // Start red color value
-uint8_t color_loop_led_out_1_g = 0;     // Start green color value
-uint8_t color_loop_led_out_1_b = 0;     // Start blue color value
-bool color_loop_restart = true;
-enum colorLoop {
-  GREEN_UP = 0,
-  RED_DOWN = 1,
-  BLUE_UP = 2,
-  GREEN_DOWN = 3,
-  RED_UP = 4,
-  BLUE_DOWN = 5
-};
-colorLoop color_loop = GREEN_UP; 
 
 // One Button variables
 uint32_t loop_time = 0;
@@ -84,8 +68,8 @@ BLEByteCharacteristic relay_sw2_characteristic(RELAY_SW2_CHARACTERISTIC_UUID, BL
 BLEByteCharacteristic relay_sw3_characteristic(RELAY_SW3_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 3 characteristic
 BLEByteCharacteristic relay_sw4_characteristic(RELAY_SW4_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 4 characteristic
 
-BLEByteCharacteristic led_sw1_characteristic(LED_SW1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 1 characteristic
-BLEByteCharacteristic led_color1_characteristic(LED_COLOR1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 1 characteristic
+BLEByteCharacteristic led_sw1_characteristic(LED_SW1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy LED Switch 1 characteristic
+BLEUnsignedLongCharacteristic led_hsv1_characteristic(LED_HSV1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy LED Hue 1 characteristic
 
 void start_ble() {
   #ifdef DEBUG_EN
@@ -103,7 +87,7 @@ void start_ble() {
   ble_service.addCharacteristic(relay_sw4_characteristic);
 
   ble_service.addCharacteristic(led_sw1_characteristic);
-  ble_service.addCharacteristic(led_color1_characteristic);
+  ble_service.addCharacteristic(led_hsv1_characteristic);
 
   BLE.addService(ble_service);    // Add BLE Service
 
@@ -114,11 +98,27 @@ void start_ble() {
   #endif
 }
 
-void setLEDvalueOut1(uint16_t led_out_1_r, uint8_t led_out_1_g, uint8_t led_out_1_b) {
+uint32_t concat_hsv(uint8_t hue, uint8_t sat, uint8_t val) {
+  return ((uint32_t)hue << 16) | ((uint32_t)sat << 8) | val;
+}
+
+void setLEDvalueOut1(uint16_t hue, uint8_t sat, uint8_t val, bool sendBLE = true) {
   for(int i = 0; i < LED_OUT_1_NUM_LEDS; i++) {
-    led_out_1[i].setRGB(led_out_1_r, led_out_1_g, led_out_1_b);
+    led_out_1[i] = CHSV(led_out_1_hue, led_out_1_sat, led_out_1_val);
   }
   FastLED.show();
+  if(deviceConnected && sendBLE) {
+    if(led_out_1_val) {
+      led_sw1_characteristic.writeValue(1);
+    }
+    else {
+      led_sw1_characteristic.writeValue(0);
+    }
+    #ifdef DEBUG_EN
+      Serial.print("Concatenated HSV: "); Serial.println(concat_hsv(led_out_1_hue, led_out_1_sat, led_out_1_val), HEX);
+    #endif
+    led_hsv1_characteristic.writeValue(concat_hsv(led_out_1_hue, led_out_1_sat, led_out_1_val));
+  }
 }
 
 void button1_click() {
@@ -136,35 +136,31 @@ void button1_click() {
     digitalWrite(RELAY_1, LOW);
     relay1_status = true;
   }
-  #ifdef DEBUG_EN
-    Serial.println("Send new relay status to BLE service");
-  #endif
-  relay_sw1_characteristic.writeValue(relay1_status);
+  if(deviceConnected) {
+    #ifdef DEBUG_EN
+      Serial.println("Send new relay status to BLE service");
+    #endif
+    relay_sw1_characteristic.writeValue(relay1_status);
+  }
 }
 void button1_doubleClick() {
   // TBD
 }
 void button1_longPressStart() {
-  if(led_out_1_r > 0 || led_out_1_g > 0 || led_out_1_b > 0) {
+  if(led_out_1_val) {
     #ifdef DEBUG_EN
       Serial.println("Turn LED output 1 Off");
     #endif
-    last_led_out_1_r = led_out_1_r;
-    last_led_out_1_g = led_out_1_g;
-    last_led_out_1_b = led_out_1_b;
-    led_out_1_r = 0;
-    led_out_1_g = 0;
-    led_out_1_b = 0;
-    setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
+    last_led_out_1_val = led_out_1_val;
+    led_out_1_val = 0;
+    setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
   }
   else {
     #ifdef DEBUG_EN
       Serial.println("Turn LED output 1 On");
     #endif
-    led_out_1_r = last_led_out_1_r;
-    led_out_1_g = last_led_out_1_g;
-    led_out_1_b = last_led_out_1_b;
-    setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
+    led_out_1_val = last_led_out_1_val;
+    setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
   }  
 }
 void button1_duringLongPress() {
@@ -185,29 +181,26 @@ void button2_click() {
     digitalWrite(RELAY_2, LOW);
     relay2_status = true;
   }
-  #ifdef DEBUG_EN
-    Serial.println("Send new relay status to BLE service");
-  #endif
-  relay_sw2_characteristic.writeValue(relay2_status);
+  if(deviceConnected) {
+    #ifdef DEBUG_EN
+      Serial.println("Send new relay status to BLE service");
+    #endif
+    relay_sw2_characteristic.writeValue(relay2_status);
+  }
 }
 void button2_doubleClick() {
-  color_loop_restart = true;
-  if(led_out_1_r > 0 || led_out_1_g > 0 || led_out_1_b > 0) {
+  if(led_out_1_val) {
     #ifdef DEBUG_EN
       Serial.println("Change LED output 1 Color to White and show");
     #endif
-    led_out_1_r = WHITE_LEDS;
-    led_out_1_g = WHITE_LEDS;
-    led_out_1_b = WHITE_LEDS;    
-    setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
+    led_out_1_sat = WHITE_SAT;
+    setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
   }
   else {
     #ifdef DEBUG_EN
       Serial.println("Change LED output 1 Color to White");
     #endif
-    last_led_out_1_r = WHITE_LEDS;
-    last_led_out_1_g = WHITE_LEDS;
-    last_led_out_1_b = WHITE_LEDS;    
+    led_out_1_sat = WHITE_SAT;
   } 
 }
 void button2_longPressStart() {
@@ -215,104 +208,17 @@ void button2_longPressStart() {
 }
 void button2_duringLongPress() {
   // Only change color when LEDs are on
-  if(led_out_1_r > 0 || led_out_1_g > 0 || led_out_1_b > 0) {
-    if(color_loop_restart) {
-      led_out_1_r = color_loop_led_out_1_r;
-      led_out_1_g = color_loop_led_out_1_g;
-      led_out_1_b = color_loop_led_out_1_b;
-      color_loop_restart = false;
-    }
+  if(led_out_1_val) {
     if((millis() - last_color_change_time) > COLOR_CHANGE_DELAY) {
-      switch(color_loop) {
-        case GREEN_UP:
-          if(led_out_1_g < (LED_MAX_BRIGHTNESS-COLOR_CHANGE_STEPS+1)) {
-            led_out_1_g += COLOR_CHANGE_STEPS; 
-          }
-          else {
-            led_out_1_g = LED_MAX_BRIGHTNESS;
-          }
-
-          if(led_out_1_g == LED_MAX_BRIGHTNESS) 
-            color_loop = RED_DOWN;
-          break;
-        case RED_DOWN:
-          if(led_out_1_r > (COLOR_CHANGE_STEPS-1)) {
-            if(led_out_1_r > LED_MAX_BRIGHTNESS) {
-              led_out_1_r = LED_MAX_BRIGHTNESS;
-            }
-            else {
-              led_out_1_r -= COLOR_CHANGE_STEPS;
-            }
-          }
-          else {
-            led_out_1_r = 0;
-          }
-
-          if(led_out_1_r == 0)
-            color_loop = BLUE_UP;
-          break;
-        case BLUE_UP:
-          if(led_out_1_b < (LED_MAX_BRIGHTNESS-COLOR_CHANGE_STEPS+1)) {
-            led_out_1_b += COLOR_CHANGE_STEPS; 
-          }
-          else {
-            led_out_1_b = LED_MAX_BRIGHTNESS;
-          }
-
-          if(led_out_1_b == LED_MAX_BRIGHTNESS) 
-            color_loop = GREEN_DOWN;
-          break;
-        case GREEN_DOWN:
-          if(led_out_1_g > (COLOR_CHANGE_STEPS-1)) {
-            if(led_out_1_g > LED_MAX_BRIGHTNESS) {
-              led_out_1_g = LED_MAX_BRIGHTNESS;
-            }
-            else {
-              led_out_1_g -= COLOR_CHANGE_STEPS;
-            }
-          }
-          else {
-            led_out_1_g = 0;
-          }
-
-          if(led_out_1_g == 0)
-            color_loop = RED_UP;
-          break;
-        case RED_UP:
-          if(led_out_1_r < (LED_MAX_BRIGHTNESS-COLOR_CHANGE_STEPS+1)) {
-            led_out_1_r += COLOR_CHANGE_STEPS; 
-          }
-          else {
-            led_out_1_r = LED_MAX_BRIGHTNESS;
-          }
-
-          if(led_out_1_r == LED_MAX_BRIGHTNESS) 
-            color_loop = BLUE_DOWN;
-          break;
-        case BLUE_DOWN:
-          if(led_out_1_b > (COLOR_CHANGE_STEPS-1)) {
-            if(led_out_1_b > LED_MAX_BRIGHTNESS) {
-              led_out_1_b = LED_MAX_BRIGHTNESS;
-            }
-            else {
-              led_out_1_b -= COLOR_CHANGE_STEPS;
-            }
-          }
-          else {
-            led_out_1_b = 0;
-          }
-
-          if(led_out_1_b == 0)
-            color_loop = GREEN_UP;
-          break;
-        default:
-          color_loop = GREEN_UP;
-          break;
+      led_out_1_hue += COLOR_CHANGE_HUE_STEPS;
+      if(led_out_1_hue >= 255) {
+        led_out_1_hue = 0;
       }
+      led_out_1_sat = LED_MAX_SATURATION;
       #ifdef DEBUG_EN
-        Serial.print("Current rgb values: "); Serial.print(led_out_1_r); Serial.print(", "); Serial.print(led_out_1_g); Serial.print(", "); Serial.println(led_out_1_b);
+        Serial.print("Current hue value = "); Serial.println(led_out_1_hue);
       #endif
-      setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
+      setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
       last_color_change_time = millis();
     }
   }
@@ -332,10 +238,12 @@ void button3_click() {
     digitalWrite(RELAY_3, LOW);
     relay3_status = true;
   }
-  #ifdef DEBUG_EN
-    Serial.println("Send new relay status to BLE service");
-  #endif
-  relay_sw3_characteristic.writeValue(relay3_status);
+  if(deviceConnected) {
+    #ifdef DEBUG_EN
+      Serial.println("Send new relay status to BLE service");
+    #endif
+    relay_sw3_characteristic.writeValue(relay3_status);
+  }
 }
 void button3_doubleClick() {
   // TBD
@@ -345,59 +253,18 @@ void button3_longPressStart() {
 }
 void button3_duringLongPress() {
   // Only change brightness when LEDs are on
-  if(led_out_1_r > LED_MIN_BRIGHTNESS || led_out_1_g > LED_MIN_BRIGHTNESS || led_out_1_b > LED_MIN_BRIGHTNESS) {
-    if((millis() - last_brightness_change_time) > BRIGHTNESS_CHANGE_DELAY) {
-      if( led_out_1_r > (LED_MIN_BRIGHTNESS+BRIGHTNESS_CHANGE_STEPS-1) || 
-          led_out_1_g > (LED_MIN_BRIGHTNESS+BRIGHTNESS_CHANGE_STEPS-1) || 
-          led_out_1_b > (LED_MIN_BRIGHTNESS+BRIGHTNESS_CHANGE_STEPS-1)) {
-        if(led_out_1_r > LED_MAX_BRIGHTNESS || led_out_1_g > LED_MAX_BRIGHTNESS || led_out_1_b > LED_MAX_BRIGHTNESS) {
-          if(led_out_1_r > LED_MAX_BRIGHTNESS) {
-            led_out_1_r = LED_MAX_BRIGHTNESS;
-          } 
-          if(led_out_1_g > LED_MAX_BRIGHTNESS) {
-            led_out_1_g = LED_MAX_BRIGHTNESS;
-          }
-          if(led_out_1_b > LED_MAX_BRIGHTNESS) {
-            led_out_1_b = LED_MAX_BRIGHTNESS;
-          }
-        }
-        else{
-          if(led_out_1_r > LED_MIN_BRIGHTNESS) {
-            led_out_1_r -= BRIGHTNESS_CHANGE_STEPS;
-          }
-          else {
-            led_out_1_r = LED_MIN_BRIGHTNESS;
-            color_loop_restart = true;
-          }
-          if(led_out_1_g > LED_MIN_BRIGHTNESS) {
-            led_out_1_g -= BRIGHTNESS_CHANGE_STEPS;
-          }
-          else {
-            led_out_1_g = LED_MIN_BRIGHTNESS;
-            color_loop_restart = true;
-          }
-          if(led_out_1_b > LED_MIN_BRIGHTNESS) {
-            led_out_1_b -= BRIGHTNESS_CHANGE_STEPS;
-          }
-          else {
-            led_out_1_b = LED_MIN_BRIGHTNESS;
-            color_loop_restart = true;
-          }
-        }
+  if(led_out_1_val > LED_MIN_BRIGHTNESS) {
+    if((millis() - last_brightness_change_time) > BRIGHTNESS_CHANGE_DELAY) {   
+      if(led_out_1_val > (LED_MIN_BRIGHTNESS+BRIGHTNESS_CHANGE_STEPS-1)) {
+        led_out_1_val -= BRIGHTNESS_CHANGE_STEPS; 
       }
       else {
-        led_out_1_r = LED_MIN_BRIGHTNESS;
-        led_out_1_g = LED_MIN_BRIGHTNESS;
-        led_out_1_b = LED_MIN_BRIGHTNESS;
-        led_out_1_r = last_led_out_1_r;
-        led_out_1_g = last_led_out_1_g;
-        led_out_1_b = last_led_out_1_b;
-        color_loop_restart = true;
+        led_out_1_val = LED_MIN_BRIGHTNESS;
       }
       #ifdef DEBUG_EN
-        Serial.print("Current rgb values: "); Serial.print(led_out_1_r); Serial.print(", "); Serial.print(led_out_1_g); Serial.print(", "); Serial.println(led_out_1_b);
+        Serial.print("Current brightness value = "); Serial.println(led_out_1_val);
       #endif
-      setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
+      setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
       last_brightness_change_time = millis();
     }
   }
@@ -417,10 +284,12 @@ void button4_click() {
     digitalWrite(RELAY_4, LOW);
     relay4_status = true;
   }
-  #ifdef DEBUG_EN
-    Serial.println("Send new relay status to BLE service");
-  #endif
-  relay_sw4_characteristic.writeValue(relay4_status);
+  if(deviceConnected) {
+    #ifdef DEBUG_EN
+      Serial.println("Send new relay status to BLE service");
+    #endif
+    relay_sw4_characteristic.writeValue(relay4_status);
+  }
 }
 void button4_doubleClick() {
   #ifdef DEBUG_EN
@@ -434,77 +303,41 @@ void button4_doubleClick() {
   relay3_status = false;
   digitalWrite(RELAY_4, HIGH);
   relay4_status = false;
-  last_led_out_1_r = led_out_1_r;
-  last_led_out_1_g = led_out_1_g;
-  last_led_out_1_b = led_out_1_b;
-  led_out_1_r = 0;
-  led_out_1_g = 0;
-  led_out_1_b = 0;
-  setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
+  led_out_1_val = 0;
+  setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
 
-  #ifdef DEBUG_EN
-    Serial.println("Send new relay statuses to BLE service");
-  #endif
-  relay_sw1_characteristic.writeValue(relay1_status);
-  relay_sw2_characteristic.writeValue(relay2_status);
-  relay_sw3_characteristic.writeValue(relay3_status);
-  relay_sw4_characteristic.writeValue(relay4_status);
+  if(deviceConnected) {
+    #ifdef DEBUG_EN
+      Serial.println("Send new relay statuses to BLE service");
+    #endif
+    relay_sw1_characteristic.writeValue(relay1_status);
+    relay_sw2_characteristic.writeValue(relay2_status);
+    relay_sw3_characteristic.writeValue(relay3_status);
+    relay_sw4_characteristic.writeValue(relay4_status);
+  }
 }
 void button4_longPressStart() {
   // TBD
 }
 void button4_duringLongPress() {
   // Only change brightness when LEDs are on
-  if(led_out_1_r < LED_MAX_BRIGHTNESS || led_out_1_g < LED_MAX_BRIGHTNESS || led_out_1_b < LED_MAX_BRIGHTNESS) {
-    if((millis() - last_brightness_change_time) > BRIGHTNESS_CHANGE_DELAY) {
-      if( led_out_1_r < (LED_MAX_BRIGHTNESS-BRIGHTNESS_CHANGE_STEPS+1) || 
-          led_out_1_g < (LED_MAX_BRIGHTNESS-BRIGHTNESS_CHANGE_STEPS+1) || 
-          led_out_1_b < (LED_MAX_BRIGHTNESS-BRIGHTNESS_CHANGE_STEPS+1)) {
-        if(led_out_1_r < LED_MIN_BRIGHTNESS || led_out_1_g < LED_MIN_BRIGHTNESS || led_out_1_b < LED_MIN_BRIGHTNESS) {
-          if(led_out_1_r < LED_MIN_BRIGHTNESS) {
-            led_out_1_r = LED_MIN_BRIGHTNESS;
-          } 
-          if(led_out_1_g < LED_MIN_BRIGHTNESS) {
-            led_out_1_g = LED_MIN_BRIGHTNESS;
-          }
-          if(led_out_1_b < LED_MIN_BRIGHTNESS) {
-            led_out_1_b = LED_MIN_BRIGHTNESS;
-          }
+  if(led_out_1_val < LED_MAX_BRIGHTNESS) {
+    if((millis() - last_brightness_change_time) > BRIGHTNESS_CHANGE_DELAY) {   
+      if(led_out_1_val < (LED_MAX_BRIGHTNESS-BRIGHTNESS_CHANGE_STEPS+1)) {
+        if(led_out_1_val < LED_MIN_BRIGHTNESS) {
+          led_out_1_val = LED_MIN_BRIGHTNESS;
         }
-        else{
-          if(led_out_1_r < LED_MAX_BRIGHTNESS) {
-            led_out_1_r += BRIGHTNESS_CHANGE_STEPS;
-          }
-          else {
-            led_out_1_r = LED_MAX_BRIGHTNESS;
-            color_loop_restart = true;
-          }
-          if(led_out_1_g < LED_MAX_BRIGHTNESS) {
-            led_out_1_g += BRIGHTNESS_CHANGE_STEPS;
-          }
-          else {
-            led_out_1_g = LED_MAX_BRIGHTNESS;
-            color_loop_restart = true;
-          }
-          if(led_out_1_b < LED_MAX_BRIGHTNESS) {
-            led_out_1_b += BRIGHTNESS_CHANGE_STEPS;
-          }
-          else {
-            led_out_1_b = LED_MAX_BRIGHTNESS;
-            color_loop_restart = true;
-          }
+        else {
+          led_out_1_val += BRIGHTNESS_CHANGE_STEPS; 
         }
       }
       else {
-        led_out_1_r = LED_MAX_BRIGHTNESS;
-        led_out_1_g = LED_MAX_BRIGHTNESS;
-        led_out_1_b = LED_MAX_BRIGHTNESS;
-        color_loop_restart = true;
+        led_out_1_val = LED_MAX_BRIGHTNESS;
       }
       #ifdef DEBUG_EN
-        Serial.print("Current rgb values: "); Serial.print(led_out_1_r); Serial.print(", "); Serial.print(led_out_1_g); Serial.print(", "); Serial.println(led_out_1_b);
+        Serial.print("Current brightness value = "); Serial.println(led_out_1_val);
       #endif
-      setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
+      setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
       last_brightness_change_time = millis();
     }
   }
@@ -528,7 +361,6 @@ void handleIncomingEvents() {
       relay1_status = false;
     }
   }
-
   // Relay 2 Event
   if(relay_sw2_characteristic.written()) {
     if(static_cast<int>(relay_sw2_characteristic.value())) {
@@ -546,7 +378,6 @@ void handleIncomingEvents() {
       relay2_status = false;
     }
   }
-
   // Relay 3 Event
   if(relay_sw3_characteristic.written()) {
     if(static_cast<int>(relay_sw3_characteristic.value())) {
@@ -564,7 +395,6 @@ void handleIncomingEvents() {
       relay3_status = false;
     }
   }
-
   // Relay 4 Event
   if(relay_sw4_characteristic.written()) {
     if(static_cast<int>(relay_sw4_characteristic.value())) {
@@ -583,7 +413,36 @@ void handleIncomingEvents() {
     }
   }
 
+  // LED 1 Switch Event
+  if(led_sw1_characteristic.written()) {
+    if(static_cast<int>(led_sw1_characteristic.value())) {
+      #ifdef DEBUG_EN
+        Serial.println("Turn LED 1 On");
+      #endif
+      led_out_1_val = last_led_out_1_val;
+      setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
+    }
+    else{
+      #ifdef DEBUG_EN
+        Serial.println("Turn LED 1 Off");
+      #endif
+      last_led_out_1_val = led_out_1_val;
+      led_out_1_val = 0;
+      setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
+    }
+  }
 
+  // LED 1 HSV Event
+  if(led_hsv1_characteristic.written()) {
+    #ifdef DEBUG_EN
+      Serial.print("LED 1 HSV value: "); Serial.println(led_hsv1_characteristic.value(), HEX);
+    #endif
+    led_out_1_hue = (led_hsv1_characteristic.value() >> 16) & 0xFF;
+    led_out_1_sat = (led_hsv1_characteristic.value() >> 8) & 0xFF;
+    led_out_1_val = led_hsv1_characteristic.value() & 0xFF;
+
+    setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val, false);
+  }
 }
 
 void init_inputs() {
@@ -655,7 +514,7 @@ void init_led_outputs() {
   // FastLED.setBrightness(LED_MAX_BRIGHTNESS);
 
   // Turn off LEDs at startup
-  setLEDvalueOut1(led_out_1_r, led_out_1_g, led_out_1_b);
+  setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
 }
 
 void setup() {
@@ -681,9 +540,6 @@ void setup() {
 }
 
 void loop() {
-  // Store start of loop time
-  loop_time = millis();
-  
   // Poll for BLE Events
   BLE.poll();
 
@@ -715,7 +571,16 @@ void loop() {
     relay_sw2_characteristic.writeValue(relay2_status);
     relay_sw3_characteristic.writeValue(relay3_status);
     relay_sw4_characteristic.writeValue(relay4_status);
-    led_sw1_characteristic.writeValue(0);   // TODO, change to current value
+    if(led_out_1_val > 1) {
+      led_sw1_characteristic.writeValue(1);
+    }
+    else {
+      led_sw1_characteristic.writeValue(0);
+    }
+    #ifdef DEBUG_EN
+      Serial.print("Concatenated HSV: "); Serial.println(concat_hsv(led_out_1_hue, led_out_1_sat, led_out_1_val), HEX);
+    #endif
+    led_hsv1_characteristic.writeValue(concat_hsv(led_out_1_hue, led_out_1_sat, led_out_1_val));
     
     oldDeviceConnected = deviceConnected;
   }
@@ -728,9 +593,4 @@ void loop() {
   button2.tick();
   button3.tick();
   button4.tick();
-
-  // Make sure loop time is long enough for OneButton handler
-  while((millis() - loop_time) < MIN_LOOP_LENGTH_MS) {
-    delay(1);
-  }
 }

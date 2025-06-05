@@ -42,12 +42,12 @@
 
     <h2>LED Control</h2>
     <p>LED String 1
-    <label id="led_string_1" class="switch"> 
-    <input type="checkbox">
+    <label class="switch"> 
+    <input type="checkbox" id="led_1">
     <span class="slider round"></span>
     </label></p>
     <label for="favcolor">Select color</label>
-    <input type="color" id="favcolor" name="favcolor" value="#00FFFF">
+    <input type="color" id="led_1_color" name="favcolor" value="#000000">
 </body>
 <script>
     // DOM Elements
@@ -59,7 +59,8 @@
     const relay2_switch = document.getElementById('relay_2');
     const relay3_switch = document.getElementById('relay_3');
     const relay4_switch = document.getElementById('relay_4');
-    const led_string1_switch = document.getElementById('led_string_1');
+    const led1_switch = document.getElementById('led_1');
+    const led1_color = document.getElementById('led_1_color');
 
     //Define BLE Device Specs
     var deviceName = 'VW-Controller';
@@ -68,6 +69,8 @@
     var relay_2_characteristic = '8c113602-3ec3-452c-868c-7d6b5a3afe1c';
     var relay_3_characteristic = '8c113603-3ec3-452c-868c-7d6b5a3afe1c';
     var relay_4_characteristic = '8c113604-3ec3-452c-868c-7d6b5a3afe1c';
+    var led_sw1_characteristic = '8c113605-3ec3-452c-868c-7d6b5a3afe1c';
+    var led_hsv1_characteristic = '8c113606-3ec3-452c-868c-7d6b5a3afe1c';
 
     //Global Variables to Handle Bluetooth
     var bleServer;
@@ -89,6 +92,10 @@
     relay2_switch.addEventListener('click', () => writeOnCharacteristic(relay_2_characteristic, relay2_switch.checked));
     relay3_switch.addEventListener('click', () => writeOnCharacteristic(relay_3_characteristic, relay3_switch.checked));
     relay4_switch.addEventListener('click', () => writeOnCharacteristic(relay_4_characteristic, relay4_switch.checked));
+
+    // Add event listeners for LED objects
+    led1_switch.addEventListener('click', () => writeOnCharacteristic(led_sw1_characteristic, led1_switch.checked));
+    led1_color.addEventListener('input', () => writeOnColorChange(led_hsv1_characteristic, led1_color.value));
 
 
     // Check if BLE is available in your Browser
@@ -116,7 +123,7 @@
     }
 
     // Connect to BLE Device and Enable Notifications
-    function connectToDevice(){
+    function connectToDevice() {
         console.log('Initializing Bluetooth...');
         navigator.bluetooth.requestDevice({
             acceptAllDevices: true,
@@ -141,10 +148,12 @@
                 service.getCharacteristic(relay_1_characteristic),
                 service.getCharacteristic(relay_2_characteristic),
                 service.getCharacteristic(relay_3_characteristic),
-                service.getCharacteristic(relay_4_characteristic)
+                service.getCharacteristic(relay_4_characteristic),
+                service.getCharacteristic(led_sw1_characteristic),
+                service.getCharacteristic(led_hsv1_characteristic)
             ]);
         })
-        .then(([relay1, relay2, relay3, relay4]) => {
+        .then(([relay1, relay2, relay3, relay4, led1_sw, led1_hsv]) => {
             console.log("All characteristics discovered");
 
             return Promise.all([
@@ -152,6 +161,8 @@
                 subscribeAndRead(relay2, handleRelay2Update),
                 subscribeAndRead(relay3, handleRelay3Update),
                 subscribeAndRead(relay4, handleRelay4Update),
+                subscribeAndRead(led1_sw, handleLED1swUpdate),
+                subscribeAndRead(led1_hsv, handleLED1hsvUpdate)
             ])
         })
         .catch(error => {
@@ -184,26 +195,51 @@
     // Relay event handlers
     function handleRelay1Update(event) {
         const value = event.target.value.getUint8(0);
-        console.log("Relay 1:", value);
+        console.log("Relay 1: ", value);
         relay1_switch.checked = value;
     }
     function handleRelay2Update(event) {
         const value = event.target.value.getUint8(0);
-        console.log("Relay 2:", value);
+        console.log("Relay 2: ", value);
         relay2_switch.checked = value;
     }
     function handleRelay3Update(event) {
         const value = event.target.value.getUint8(0);
-        console.log("Relay 3:", value);
+        console.log("Relay 3: ", value);
         relay3_switch.checked = value;
     }
     function handleRelay4Update(event) {
         const value = event.target.value.getUint8(0);
-        console.log("Relay 4:", value);
+        console.log("Relay 4: ", value);
         relay4_switch.checked = value;
     }
+    function handleLED1swUpdate(event) {
+        const value = event.target.value.getUint8(0);
+        console.log("LED 1 SW: ", value);
+        led1_switch.checked = value;
+    }
+    function handleLED1hsvUpdate(event) {
+        const data = event.target.value;
+        const hsv_value = data.getUint32(0, true);
+        console.log("LED 1 HSV: ", "0x" + hsv_value.toString(16));
+        const hue = (hsv_value >> 16) & 0xFF;
+        const sat = (hsv_value >> 8) & 0xFF;
+        const val = hsv_value & 0xFF;
+        // console.log("LED 1 Hue: ", hue);
+        // console.log("LED 1 Sat: ", sat);
+        // console.log("LED 1 Val: ", val);
 
-    function writeOnCharacteristic(uuid, value){
+        const {r, g, b} = hsvToRgb(hue, sat, val);
+        // console.log("LED 1 R: ", r);
+        // console.log("LED 1 G: ", g);
+        // console.log("LED 1 B: ", b);
+        const hex_hsv = rgbToHex(r, g, b);
+        console.log("LED 1 Hex HSV: ", "0x" + hex_hsv,toString(16));
+
+        led1_color.value = hex_hsv;
+    }
+
+    function writeOnCharacteristic(uuid, value) {
         if (bleServer && bleServer.connected) {
             bleServiceFound.getCharacteristic(uuid)
             .then(characteristic => {
@@ -214,19 +250,141 @@
                     console.log(false);
                 }
                 const data = new Uint8Array([value]);
-                return characteristic.writeValue(data);
+                return characteristic.writeValueWithoutResponse(data);
             })
             .catch(error => {
                 console.error("Error writing to the characteristic: ", error);
             });
-        } else {
+        } 
+        else {
+            console.error ("Bluetooth is not connected. Cannot write to characteristic.")
+            window.alert("Bluetooth is not connected. Cannot write to characteristic. \n Connect to BLE first!")
+        }
+    }
+    function writeOnColorChange(hsv_uuid, value) {
+        if(bleServer && bleServer.connected) {
+            bleServiceFound.getCharacteristic(hsv_uuid)
+            .then(characteristic => {
+                console.log("Found the characteristic: ", characteristic.uuid);
+                console.log("LED 1 RGB: ", "0x" + value.toString(16));
+                const hex_rgb = value.replace("#", "");     // remove "#" from "#rrggbb"
+                const int_rgb = parseInt(hex_rgb, 16);    // convert to number
+                const r = (int_rgb >> 16) & 0xFF;
+                const g = (int_rgb >> 8) & 0xFF;
+                const b = int_rgb & 0xFF;
+                // console.log("LED 1 R: ", r);
+                // console.log("LED 1 G: ", g);
+                // console.log("LED 1 B: ", b);
+                const { h, s, v } = rgbToHsv(r, g, b);
+                // console.log("LED 1 Hue: ", h);
+                // console.log("LED 1 Sat: ", s);
+                // console.log("LED 1 Val: ", v);
+                const hsv = (h << 16) | (s << 8) | v;
+                console.log("LED 1 HSV: ", "0x" + hsv.toString(16));
+                lastWrittenHSV = hsv;
+
+                if(v > 0 && !led1_switch.checked) {
+                    led1_switch.checked = true;
+                }
+                else if(v == 0 && led1_switch.checked) {
+                    led1_switch.checked = false;
+                }
+
+                const data = new Uint32Array([hsv]);
+                return characteristic.writeValueWithoutResponse(data);
+            })
+            .catch(error => {
+                console.error("Error writing to the characteristic: ", error);
+            });
+        }
+        else {
             console.error ("Bluetooth is not connected. Cannot write to characteristic.")
             window.alert("Bluetooth is not connected. Cannot write to characteristic. \n Connect to BLE first!")
         }
     }
 
+    // HSV to RGB conversion
+    function hsvToRgb(h, s, v) {
+        // Normalize input
+        h = (h / 255) * 360;
+        s = s / 255;
+        v = v / 255;
 
+        let r, g, b;
+        let c = v * s;
+        let x = c * (1 - Math.abs((h / 60) % 2 - 1));
+        let m = v - c;
 
+        if (h < 60) {
+            [r, g, b] = [c, x, 0];
+        } else if (h < 120) {
+            [r, g, b] = [x, c, 0];
+        } else if (h < 180) {
+            [r, g, b] = [0, c, x];
+        } else if (h < 240) {
+            [r, g, b] = [0, x, c];
+        } else if (h < 300) {
+            [r, g, b] = [x, 0, c];
+        } else {
+            [r, g, b] = [c, 0, x];
+        }
+
+        r = Math.round((r + m) * 255);
+        g = Math.round((g + m) * 255);
+        b = Math.round((b + m) * 255);
+
+        return { r, g, b };
+    }
+    
+    // RGB to HEX
+    function rgbToHex(r, g, b) {
+        return (
+            '#' +
+            [r, g, b]
+            .map(x => x.toString(16).padStart(2, '0'))
+            .join('')
+        );
+    }
+
+    // RGB to HSV conversion
+    function rgbToHsv(r, g, b) {
+        // Normalize RGB to [0, 1]
+        r /= 255;
+        g /= 255;
+        b /= 255;
+
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const delta = max - min;
+
+        let h = 0, s = 0, v = max;
+
+        if (delta !== 0) {
+            if (max === r) {
+            h = ((g - b) / delta) % 6;
+            } else if (max === g) {
+            h = (b - r) / delta + 2;
+            } else {
+            h = (r - g) / delta + 4;
+            }
+
+            h *= 60;
+            if (h < 0) h += 360;
+
+            s = delta / max;
+        }
+
+        // Scale to 0–255
+        const hInt = Math.round((h / 360) * 255);
+        const sInt = Math.round(s * 255);
+        const vInt = Math.round(v * 255);
+
+        return { h: hInt, s: sInt, v: vInt };
+    }
+
+    // function delay(ms) {
+    //     return new Promise(resolve => setTimeout(resolve, ms));
+    // }
 </script>
 
 </html>
