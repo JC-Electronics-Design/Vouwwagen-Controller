@@ -69,7 +69,9 @@ BLEByteCharacteristic relay_sw3_characteristic(RELAY_SW3_CHARACTERISTIC_UUID, BL
 BLEByteCharacteristic relay_sw4_characteristic(RELAY_SW4_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy Relay Switch 4 characteristic
 
 BLEByteCharacteristic led_sw1_characteristic(LED_SW1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy LED Switch 1 characteristic
-BLEUnsignedLongCharacteristic led_hsv1_characteristic(LED_HSV1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy LED Hue 1 characteristic
+BLEByteCharacteristic led_hue1_characteristic(LED_HUE1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy LED Hue 1 characteristic
+BLEByteCharacteristic led_sat1_characteristic(LED_SAT1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy LED Hue 1 characteristic
+BLEByteCharacteristic led_val1_characteristic(LED_VAL1_CHARACTERISTIC_UUID, BLERead | BLEWrite | BLENotify);    // Bluetooth® Low Energy LED Hue 1 characteristic
 
 void start_ble() {
   #ifdef DEBUG_EN
@@ -87,7 +89,9 @@ void start_ble() {
   ble_service.addCharacteristic(relay_sw4_characteristic);
 
   ble_service.addCharacteristic(led_sw1_characteristic);
-  ble_service.addCharacteristic(led_hsv1_characteristic);
+  ble_service.addCharacteristic(led_hue1_characteristic);
+  ble_service.addCharacteristic(led_sat1_characteristic);
+  ble_service.addCharacteristic(led_val1_characteristic);
 
   BLE.addService(ble_service);    // Add BLE Service
 
@@ -117,7 +121,11 @@ void setLEDvalueOut1(uint16_t hue, uint8_t sat, uint8_t val, bool sendBLE = true
     #ifdef DEBUG_EN
       Serial.print("Concatenated HSV: "); Serial.println(concat_hsv(led_out_1_hue, led_out_1_sat, led_out_1_val), HEX);
     #endif
-    led_hsv1_characteristic.writeValue(concat_hsv(led_out_1_hue, led_out_1_sat, led_out_1_val));
+    led_hue1_characteristic.writeValue(led_out_1_hue);
+    delay(10);
+    led_sat1_characteristic.writeValue(led_out_1_sat);
+    delay(10);
+    led_val1_characteristic.writeValue(led_out_1_val);
   }
 }
 
@@ -194,6 +202,7 @@ void button2_doubleClick() {
       Serial.println("Change LED output 1 Color to White and show");
     #endif
     led_out_1_sat = WHITE_SAT;
+    led_out_1_hue = 0;
     setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);
   }
   else {
@@ -201,6 +210,7 @@ void button2_doubleClick() {
       Serial.println("Change LED output 1 Color to White");
     #endif
     led_out_1_sat = WHITE_SAT;
+    led_out_1_hue = 0;
   } 
 }
 void button2_longPressStart() {
@@ -432,16 +442,28 @@ void handleIncomingEvents() {
     }
   }
 
-  // LED 1 HSV Event
-  if(led_hsv1_characteristic.written()) {
+  // LED 1 HUE Event
+  if(led_hue1_characteristic.written()) {
     #ifdef DEBUG_EN
-      Serial.print("LED 1 HSV value: "); Serial.println(led_hsv1_characteristic.value(), HEX);
+      Serial.print("LED 1 HUE value: "); Serial.println(led_hue1_characteristic.value(), HEX);
     #endif
-    led_out_1_hue = (led_hsv1_characteristic.value() >> 16) & 0xFF;
-    led_out_1_sat = (led_hsv1_characteristic.value() >> 8) & 0xFF;
-    led_out_1_val = led_hsv1_characteristic.value() & 0xFF;
+    led_out_1_hue = led_hue1_characteristic.value();
+  }
+  // LED 1 SAT Event
+  if(led_sat1_characteristic.written()) {
+    #ifdef DEBUG_EN
+      Serial.print("LED 1 SAT value: "); Serial.println(led_sat1_characteristic.value(), HEX);
+    #endif
+    led_out_1_sat = led_sat1_characteristic.value();
+  }
+  // LED 1 HUE Event
+  if(led_val1_characteristic.written()) {
+    #ifdef DEBUG_EN
+      Serial.print("LED 1 VAL value: "); Serial.println(led_val1_characteristic.value(), HEX);
+    #endif
+    led_out_1_val = led_val1_characteristic.value();
 
-    setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val, false);
+    setLEDvalueOut1(led_out_1_hue, led_out_1_sat, led_out_1_val);   // Only set LEDs on receiving value, because that is the last value in the hsv pack
   }
 }
 
@@ -580,7 +602,9 @@ void loop() {
     #ifdef DEBUG_EN
       Serial.print("Concatenated HSV: "); Serial.println(concat_hsv(led_out_1_hue, led_out_1_sat, led_out_1_val), HEX);
     #endif
-    led_hsv1_characteristic.writeValue(concat_hsv(led_out_1_hue, led_out_1_sat, led_out_1_val));
+    led_hue1_characteristic.writeValue(led_out_1_hue);
+    led_sat1_characteristic.writeValue(led_out_1_sat);
+    led_val1_characteristic.writeValue(led_out_1_val);
     
     oldDeviceConnected = deviceConnected;
   }
