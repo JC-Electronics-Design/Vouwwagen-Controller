@@ -1,12 +1,31 @@
-/* The switch - the box around the slider */
+html {
+  height: 100%;
+}
+
 body {
+  margin: 0px 8px 0px 8px;
   background-color: black;
   font-family: Verdana, Geneva, Tahoma, sans-serif;
   max-width: 375px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.content {
+  flex: 1;
 }
 
 h2, h3, p {
   color: darkorange;
+}
+
+.footer {
+  font-size: 0.8em;
+  text-align: center;
+  padding: 10px;
+  color: darkorange;
+  font-size: 14px;
 }
 
 button {

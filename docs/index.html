@@ -13,49 +13,55 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h2>Vouwwagen Controller</h2>
-    <button id="connectBleButton">Connect to BLE Device</button>
-    <button id="disconnectBleButton">Disconnect BLE Device</button>
-    <p>BLE state: <strong><span id="bleState" style="color:#d13a30;">Disconnected</span></strong></p>
-    <h3>Relay Control</h3>
-    <!-- Rounded switch -->
-    <p class="control-row">Relay 1
-        <label class="switch"> 
-            <input type="checkbox" id="relay_1">
-            <span class="slider round"></span>
-        </label>
-    </p>
-    <p class="control-row">Relay 2
-        <label class="switch"> 
-            <input type="checkbox" id="relay_2">
-            <span class="slider round"></span>
-        </label>
-    </p>
-    <p class="control-row">Relay 3
-        <label class="switch"> 
-            <input type="checkbox" id="relay_3">
-            <span class="slider round"></span>
-        </label>
-    </p>
-    <p class="control-row">Relay 4
-        <label class="switch"> 
-            <input type="checkbox" id="relay_4">
-            <span class="slider round"></span>
-        </label>
-    </p>
+    <div class="content">
+        <h2>Vouwwagen Controller</h2>
+        <button id="connectBleButton">Connect to BLE Device</button>
+        <button id="disconnectBleButton">Disconnect BLE Device</button>
+        <p>BLE state: <strong><span id="bleState" style="color:#d13a30;">Disconnected</span></strong></p>
+        <h3>Relay Control</h3>
+        <!-- Rounded switch -->
+        <p class="control-row">Relay 1
+            <label class="switch"> 
+                <input type="checkbox" id="relay_1">
+                <span class="slider round"></span>
+            </label>
+        </p>
+        <p class="control-row">Relay 2
+            <label class="switch"> 
+                <input type="checkbox" id="relay_2">
+                <span class="slider round"></span>
+            </label>
+        </p>
+        <p class="control-row">Relay 3
+            <label class="switch"> 
+                <input type="checkbox" id="relay_3">
+                <span class="slider round"></span>
+            </label>
+        </p>
+        <p class="control-row">Relay 4
+            <label class="switch"> 
+                <input type="checkbox" id="relay_4">
+                <span class="slider round"></span>
+            </label>
+        </p>
 
-    <h3>LED Control</h3>
-    <p class="control-row">LED String 1
-        <label class="switch"> 
-            <input type="checkbox" id="led_1">
-            <span class="slider round"></span>
-        </label>
-    </p>
-    <p class="control-row">Select color
-        <label>
-            <input type="color" id="led_1_color" name="favcolor" value="#000000">
-        </label>
-    </p>
+        <h3>LED Control</h3>
+        <p class="control-row">LED String 1
+            <label class="switch"> 
+                <input type="checkbox" id="led_1">
+                <span class="slider round"></span>
+            </label>
+        </p>
+        <p class="control-row">Select color
+            <label>
+                <input type="color" id="led_1_color" name="favcolor" value="#000000">
+            </label>
+        </p>
+    </div>
+    
+    <footer class="footer">
+        <p class="footer">JC Design  -  Vouwwagen Controller</p>
+    </footer>
 </body>
 <script>
     // DOM Elements
