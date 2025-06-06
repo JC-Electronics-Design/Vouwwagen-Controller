@@ -6,9 +6,11 @@ body {
   margin: 0px 8px 0px 8px;
   background-color: black;
   font-family: Verdana, Geneva, Tahoma, sans-serif;
-  max-width: 375px;
+  /* max-width: 375px; */
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  align-items: center;
   height: 100%;
 }
 
