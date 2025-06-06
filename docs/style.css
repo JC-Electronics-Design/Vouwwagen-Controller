@@ -5,11 +5,7 @@ body {
   max-width: 375px;
 }
 
-h1 {
-  font-size: 1.75em;
-}
-
-h1, h3, p {
+h2, h3, p {
   color: darkorange;
 }
 
