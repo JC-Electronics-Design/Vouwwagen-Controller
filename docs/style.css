@@ -2,10 +2,14 @@
 body {
   background-color: black;
   font-family: Verdana, Geneva, Tahoma, sans-serif;
-  max-width: 430px;
+  max-width: 375px;
 }
 
-h1, h2, p {
+h1 {
+  font-size: 1.75em;
+}
+
+h1, h3, p {
   color: darkorange;
 }
 
