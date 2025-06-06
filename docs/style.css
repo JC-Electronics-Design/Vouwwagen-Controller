@@ -1,6 +1,8 @@
 /* The switch - the box around the slider */
 body {
   background-color: black;
+  font-family: Verdana, Geneva, Tahoma, sans-serif;
+  max-width: 430px;
 }
 
 h1, h2, p {
@@ -23,9 +25,17 @@ button {
 .switch {
   position: relative;
   display: inline-block;
-  width: 60px;
-  height: 34px;
+  width: 50px;
+  height: 28px;
   vertical-align: middle;
+}
+
+.control-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: darkorange;
+  margin: 8px 0;
 }
 
 /* Hide default HTML checkbox */
@@ -51,8 +61,8 @@ button {
 .slider:before {
   position: absolute;
   content: "";
-  height: 26px;
-  width: 26px;
+  height: 20px;
+  width: 20px;
   left: 4px;
   bottom: 4px;
   background-color: white;
@@ -69,9 +79,9 @@ input:focus + .slider {
 }
 
 input:checked + .slider:before {
-  -webkit-transform: translateX(26px);
-  -ms-transform: translateX(26px);
-  transform: translateX(26px);
+  -webkit-transform: translateX(20px);
+  -ms-transform: translateX(20px);
+  transform: translateX(20px);
 }
 
 /* Rounded sliders */

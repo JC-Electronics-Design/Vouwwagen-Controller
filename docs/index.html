@@ -19,35 +19,43 @@
     <p>BLE state: <strong><span id="bleState" style="color:#d13a30;">Disconnected</span></strong></p>
     <h2>Relay Control</h2>
     <!-- Rounded switch -->
-    <p>Relay 1
-    <label class="switch"> 
-    <input type="checkbox" id="relay_1">
-    <span class="slider round"></span>
-    </label></p>
-    <p>Relay 2
-    <label class="switch"> 
-    <input type="checkbox" id="relay_2">
-    <span class="slider round"></span>
-    </label></p>
-    <p>Relay 3
-    <label class="switch"> 
-    <input type="checkbox" id="relay_3">
-    <span class="slider round"></span>
-    </label></p>
-    <p>Relay 4
-    <label class="switch"> 
-    <input type="checkbox" id="relay_4">
-    <span class="slider round"></span>
-    </label></p>
+    <p class="control-row">Relay 1
+        <label class="switch"> 
+            <input type="checkbox" id="relay_1">
+            <span class="slider round"></span>
+        </label>
+    </p>
+    <p class="control-row">Relay 2
+        <label class="switch"> 
+            <input type="checkbox" id="relay_2">
+            <span class="slider round"></span>
+        </label>
+    </p>
+    <p class="control-row">Relay 3
+        <label class="switch"> 
+            <input type="checkbox" id="relay_3">
+            <span class="slider round"></span>
+        </label>
+    </p>
+    <p class="control-row">Relay 4
+        <label class="switch"> 
+            <input type="checkbox" id="relay_4">
+            <span class="slider round"></span>
+        </label>
+    </p>
 
     <h2>LED Control</h2>
-    <p>LED String 1
-    <label class="switch"> 
-    <input type="checkbox" id="led_1">
-    <span class="slider round"></span>
-    </label></p>
-    <label for="favcolor" class="favcolor">Select color</label>
-    <input type="color" id="led_1_color" name="favcolor" value="#000000">
+    <p class="control-row">LED String 1
+        <label class="switch"> 
+            <input type="checkbox" id="led_1">
+            <span class="slider round"></span>
+        </label>
+    </p>
+    <p class="control-row">Select color
+        <label>
+            <input type="color" id="led_1_color" name="favcolor" value="#000000">
+        </label>
+    </p>
 </body>
 <script>
     // DOM Elements
