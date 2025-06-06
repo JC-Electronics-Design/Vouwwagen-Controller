@@ -38,6 +38,11 @@ button {
   border: 1px solid darkorange;
 }
 
+.button-row {
+  display: flex;
+  gap: 25px; /* adds equal space between buttons */
+}
+
 .favcolor {
   color: darkorange;
   vertical-align: middle;
